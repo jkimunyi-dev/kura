@@ -38,4 +38,11 @@ public class Candidate {
 
     @CreationTimestamp
     private LocalDateTime createdAt;
+
+    @Column(name = "vote_count", nullable = false)
+    private Integer voteCount = 0;
+
+    public void incrementVoteCount() {
+        this.voteCount = this.voteCount + 1;
+    }
 }

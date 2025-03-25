@@ -44,6 +44,22 @@ public class User {
 
     private String email;
 
+    // New voter-related fields
+    @Column(length = 6)
+    private String votingCode;
+
+    private LocalDateTime votingCodeExpiresAt;
+
+    private boolean votingCodeUsed = false;
+
+    private boolean isVoter = false;
+
+    @Column(length = 20)
+    @Enumerated(EnumType.STRING)
+    private VoterStatus voterStatus = VoterStatus.PENDING;
+
+    private LocalDateTime lastLogin;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

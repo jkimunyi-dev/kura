@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class VoteRequest {
-    private Long voterId;
-    private Long candidateId;
+    private String voterAdmissionNumber;
+    private String candidateAdmissionNumber;
+    private String votingCode;
 }

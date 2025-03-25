@@ -1,8 +1,10 @@
 package com.voting.kura.service;
 
+import com.voting.kura.exception.VotingException;
 import com.voting.kura.model.Candidate;
 import com.voting.kura.model.Position;
 import com.voting.kura.model.User;
+import com.voting.kura.repository.CandidateRepository;
 import com.voting.kura.util.CourseCodeParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -11,11 +13,13 @@ import org.springframework.stereotype.Service;
 public class EligibilityService {
     private final UserService userService;
     private final PositionService positionService;
+    private final CandidateRepository candidateRepository;
 
     @Autowired
-    public EligibilityService(UserService userService, PositionService positionService) {
+    public EligibilityService(UserService userService, PositionService positionService, CandidateRepository candidateRepository) {
         this.userService = userService;
         this.positionService = positionService;
+        this.candidateRepository = candidateRepository;
     }
 
     /**
@@ -38,11 +42,31 @@ public class EligibilityService {
     }
 
     private boolean isEligibleForClassRepVoting(User user, Position position) {
-        return true; // Implement class-level voting logic
+        // Get the candidate for this position
+        Candidate candidate = candidateRepository.findByPositionId(position.getId())
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new VotingException("No candidate found for this position"));
+        
+        // Check if voter and candidate are in the same class
+        return CourseCodeParser.isSameClass(
+            user.getAdmissionNumber(), 
+            candidate.getUser().getAdmissionNumber()
+        );
     }
 
     private boolean isEligibleForFacultyRepVoting(User user, Position position) {
-        return true; // Implement faculty-level voting logic
+        // Get the candidate for this position
+        Candidate candidate = candidateRepository.findByPositionId(position.getId())
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new VotingException("No candidate found for this position"));
+        
+        // Check if voter and candidate are in the same faculty
+        return CourseCodeParser.isSameFaculty(
+            user.getAdmissionNumber(), 
+            candidate.getUser().getAdmissionNumber()
+        );
     }
 
     private boolean isEligibleForUniversityWideVoting(User user) {
