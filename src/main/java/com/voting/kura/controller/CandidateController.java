@@ -28,4 +28,14 @@ public class CandidateController {
     public ResponseEntity<Candidate> getCandidateById(@PathVariable Long id) {
         return ResponseEntity.ok(candidateService.getCandidateById(id));
     }
+
+    @GetMapping("/position/{positionId}")
+    public ResponseEntity<List<Candidate>> getCandidatesByPosition(@PathVariable Long positionId) {
+        return ResponseEntity.ok(candidateService.getCandidatesByPosition(positionId));
+    }
+
+    @GetMapping("/faculty/{facultyCode}")
+    public ResponseEntity<List<Candidate>> getCandidatesByFaculty(@PathVariable String facultyCode) {
+        return ResponseEntity.ok(candidateService.getCandidatesByFaculty(facultyCode));
+    }
 }
