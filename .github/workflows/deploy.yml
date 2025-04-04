@@ -21,37 +21,26 @@ jobs:
     - name: Build with Maven
       run: ./mvnw clean package -DskipTests
         
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
-        
-    - name: Copy JAR to EC2
+    - name: Deploy to EC2
       env:
         EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-        EC2_HOST: ${{ secrets.EC2_HOST }}
-        EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
       run: |
+        # Setup SSH key
         echo "$EC2_SSH_KEY" > ssh_key.pem
         chmod 600 ssh_key.pem
-        scp -o StrictHostKeyChecking=no -i ssh_key.pem target/kura-*.jar $EC2_USERNAME@$EC2_HOST:~/app.jar
         
-    - name: Deploy application
-      env:
-        EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-        EC2_HOST: ${{ secrets.EC2_HOST }}
-        EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-      run: |
-        ssh -o StrictHostKeyChecking=no -i ssh_key.pem $EC2_USERNAME@$EC2_HOST '
+        # Copy JAR to EC2
+        scp -o StrictHostKeyChecking=no -i ssh_key.pem target/kura-*.jar ubuntu@ec2-18-226-165-114.us-east-2.compute.amazonaws.com:~/app.jar
+        
+        # Deploy application
+        ssh -o StrictHostKeyChecking=no -i ssh_key.pem ubuntu@ec2-18-226-165-114.us-east-2.compute.amazonaws.com '
           # Kill existing application if running
           pid=$(pgrep -f app.jar) && kill -9 $pid || true
           
-          # Start the application with memory constraints
-          nohup java -Xmx512m -Xms256m -jar app.jar > app.log 2>&1 &
+          # Start the application
+          nohup java -jar app.jar > app.log 2>&1 &
           
-          # Wait a few seconds to check if application started successfully
+          # Wait and verify
           sleep 10
           if pgrep -f app.jar > /dev/null; then
             echo "Application deployed successfully"
