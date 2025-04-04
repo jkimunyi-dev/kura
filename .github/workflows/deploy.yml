@@ -52,72 +52,70 @@ jobs:
           fi
           echo "JAR file successfully copied to EC2"
 
-      - name: Stop existing application
+      - name: Deploy and Run
         env:
           EC2_HOST: ec2-18-226-165-114.us-east-2.compute.amazonaws.com
           EC2_USERNAME: ubuntu
         run: |
-          ssh -i ~/.ssh/deploy_key $EC2_USERNAME@$EC2_HOST '
-            echo "Checking for existing application..."
-            if pid=$(pgrep -f app.jar); then
-              echo "Found application running with PID: $pid"
-              echo "Attempting to stop gracefully..."
-              kill -15 $pid || true
-              sleep 5
+          ssh -i ~/.ssh/deploy_key $EC2_USERNAME@$EC2_HOST "bash -s" << 'EOF'
+            set -e
+            echo "Deployment started on $(date)"
           
-              if pgrep -f app.jar > /dev/null; then
-                echo "Application still running, stopping forcefully..."
-                kill -9 $(pgrep -f app.jar) || true
+            # Check for running app
+            echo "Checking for existing application..."
+            if ps aux | grep "[a]pp.jar"; then
+              echo "Found running application"
+          
+              # Get PID safely
+              APP_PID=$(ps aux | grep "[a]pp.jar" | awk '{print $2}')
+              if [ -n "$APP_PID" ]; then
+                echo "Application PID: $APP_PID"
+          
+                # Kill with SIGTERM first
+                echo "Attempting graceful shutdown..."
+                sudo kill -15 $APP_PID 2>/dev/null || echo "Failed to send SIGTERM"
+          
+                # Check if still running after 5 seconds
+                sleep 5
+                if ps -p $APP_PID > /dev/null 2>&1; then
+                  echo "Application still running, using SIGKILL..."
+                  sudo kill -9 $APP_PID 2>/dev/null || echo "Failed to send SIGKILL"
+                  sleep 2
+                else
+                  echo "Application stopped successfully with SIGTERM"
+                fi
               else
-                echo "Application stopped successfully"
+                echo "Could not determine PID, but will proceed anyway"
               fi
             else
               echo "No existing application found running"
             fi
-          '
-
-      - name: Start application
-        env:
-          EC2_HOST: ec2-18-226-165-114.us-east-2.compute.amazonaws.com
-          EC2_USERNAME: ubuntu
-        run: |
-          ssh -i ~/.ssh/deploy_key $EC2_USERNAME@$EC2_HOST '
+          
             echo "Starting new application..."
             cd ~
-            nohup java \
-              -Xmx512m \
-              -XX:+HeapDumpOnOutOfMemoryError \
-              -XX:HeapDumpPath=/home/ubuntu/heapdump.hprof \
-              -jar app.jar > app.log 2>&1 &
-          
-            # Make sure the process started
+            nohup java -Xmx512m -jar app.jar > app.log 2>&1 &
             sleep 5
-            if pgrep -f app.jar > /dev/null; then
-              echo "Application process started successfully"
+          
+            # Check if started
+            if ps aux | grep "[a]pp.jar"; then
+              echo "Application started successfully!"
+              NEW_PID=$(ps aux | grep "[a]pp.jar" | awk '{print $2}')
+              echo "New application running with PID: $NEW_PID"
+          
+              # Wait for health check if needed
+              for i in {1..15}; do
+                echo "Health check attempt $i..."
+                if curl -s http://localhost:8080/actuator/health 2>&1 | grep -q "UP"; then
+                  echo "Application is healthy!"
+                  exit 0
+                fi
+                sleep 2
+              done
+          
+              echo "Application started but health check failed. Recent logs:"
+              tail -n 20 app.log
             else
-              echo "Application failed to start. Last few lines of log:"
-              tail -n 50 app.log
+              echo "Failed to start application. Recent logs:"
+              tail -n 20 app.log
               exit 1
             fi
-          '
-
-      - name: Verify application health
-        env:
-          EC2_HOST: ec2-18-226-165-114.us-east-2.compute.amazonaws.com
-          EC2_USERNAME: ubuntu
-        run: |
-          ssh -i ~/.ssh/deploy_key $EC2_USERNAME@$EC2_HOST '
-            echo "Verifying application health..."
-            for i in {1..30}; do
-              if curl -s http://localhost:8080/actuator/health 2>&1 | grep -q "UP"; then
-                echo "Application is healthy and ready to serve requests"
-                exit 0
-              fi
-              echo "Waiting for application to become healthy... ($i/30)"
-              sleep 2
-            done
-          
-            echo "Application failed to become healthy. Last few lines of log:"
-            tail -n 50 app.log
-            exit 1
-          '
