@@ -25,26 +25,42 @@ jobs:
       env:
         EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
       run: |
-        # Setup SSH key
+        # Setup SSH key with debug
+        echo "Setting up SSH key..."
         echo "$EC2_SSH_KEY" > ssh_key.pem
         chmod 600 ssh_key.pem
+        ls -la ssh_key.pem
         
-        # Copy JAR to EC2
-        scp -o StrictHostKeyChecking=no -i ssh_key.pem target/kura-*.jar ubuntu@ec2-18-226-165-114.us-east-2.compute.amazonaws.com:~/app.jar
+        # Test SSH connection
+        echo "Testing SSH connection..."
+        ssh -v -o StrictHostKeyChecking=no -i ssh_key.pem ubuntu@ec2-18-226-165-114.us-east-2.compute.amazonaws.com 'echo "SSH connection successful"'
         
-        # Deploy application
-        ssh -o StrictHostKeyChecking=no -i ssh_key.pem ubuntu@ec2-18-226-165-114.us-east-2.compute.amazonaws.com '
-          # Kill existing application if running
-          pid=$(pgrep -f app.jar) && kill -9 $pid || true
+        if [ $? -eq 0 ]; then
+          echo "SSH connection test successful, proceeding with deployment..."
           
-          # Start the application
-          nohup java -jar app.jar > app.log 2>&1 &
+          # Copy JAR to EC2
+          echo "Copying JAR file..."
+          scp -v -o StrictHostKeyChecking=no -i ssh_key.pem target/kura-*.jar ubuntu@ec2-18-226-165-114.us-east-2.compute.amazonaws.com:~/app.jar
           
-          # Wait and verify
-          sleep 10
-          if pgrep -f app.jar > /dev/null; then
-            echo "Application deployed successfully"
-          else
-            echo "Application failed to start" && exit 1
-          fi
-        '
+          # Deploy application
+          echo "Deploying application..."
+          ssh -o StrictHostKeyChecking=no -i ssh_key.pem ubuntu@ec2-18-226-165-114.us-east-2.compute.amazonaws.com '
+            echo "Killing existing process..."
+            pid=$(pgrep -f app.jar) && kill -9 $pid || true
+            
+            echo "Starting application..."
+            nohup java -jar app.jar > app.log 2>&1 &
+            
+            echo "Waiting for application to start..."
+            sleep 10
+            if pgrep -f app.jar > /dev/null; then
+              echo "Application deployed successfully"
+            else
+              echo "Application failed to start"
+              exit 1
+            fi
+          '
+        else
+          echo "SSH connection test failed"
+          exit 1
+        fi
