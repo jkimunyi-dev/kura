@@ -41,47 +41,83 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy to EC2
+      - name: Copy JAR to EC2
         env:
           EC2_HOST: ec2-18-226-165-114.us-east-2.compute.amazonaws.com
           EC2_USERNAME: ubuntu
         run: |
-          # Copy JAR to EC2
           if ! scp -i ~/.ssh/deploy_key target/kura-*.jar $EC2_USERNAME@$EC2_HOST:~/app.jar; then
             echo "Failed to copy JAR file to EC2"
             exit 1
           fi
-          
-          # Deploy application
+          echo "JAR file successfully copied to EC2"
+
+      - name: Stop existing application
+        env:
+          EC2_HOST: ec2-18-226-165-114.us-east-2.compute.amazonaws.com
+          EC2_USERNAME: ubuntu
+        run: |
           ssh -i ~/.ssh/deploy_key $EC2_USERNAME@$EC2_HOST '
-            set -e
-          
-            echo "Stopping existing application..."
+            echo "Checking for existing application..."
             if pid=$(pgrep -f app.jar); then
-              kill -15 $pid || kill -9 $pid
+              echo "Found application running with PID: $pid"
+              echo "Attempting to stop gracefully..."
+              kill -15 $pid || true
               sleep 5
-            fi
           
+              if pgrep -f app.jar > /dev/null; then
+                echo "Application still running, stopping forcefully..."
+                kill -9 $(pgrep -f app.jar) || true
+              else
+                echo "Application stopped successfully"
+              fi
+            else
+              echo "No existing application found running"
+            fi
+          '
+
+      - name: Start application
+        env:
+          EC2_HOST: ec2-18-226-165-114.us-east-2.compute.amazonaws.com
+          EC2_USERNAME: ubuntu
+        run: |
+          ssh -i ~/.ssh/deploy_key $EC2_USERNAME@$EC2_HOST '
             echo "Starting new application..."
+            cd ~
             nohup java \
               -Xmx512m \
               -XX:+HeapDumpOnOutOfMemoryError \
               -XX:HeapDumpPath=/home/ubuntu/heapdump.hprof \
               -jar app.jar > app.log 2>&1 &
           
-            # Wait for application to start
+            # Make sure the process started
+            sleep 5
+            if pgrep -f app.jar > /dev/null; then
+              echo "Application process started successfully"
+            else
+              echo "Application failed to start. Last few lines of log:"
+              tail -n 50 app.log
+              exit 1
+            fi
+          '
+
+      - name: Verify application health
+        env:
+          EC2_HOST: ec2-18-226-165-114.us-east-2.compute.amazonaws.com
+          EC2_USERNAME: ubuntu
+        run: |
+          ssh -i ~/.ssh/deploy_key $EC2_USERNAME@$EC2_HOST '
+            echo "Verifying application health..."
             for i in {1..30}; do
-              if pgrep -f app.jar > /dev/null; then
-                if curl -s http://localhost:8080/actuator/health 2>&1 | grep -q "UP"; then
-                  echo "Application started successfully"
-                  exit 0
-                fi
+              if curl -s http://localhost:8080/actuator/health 2>&1 | grep -q "UP"; then
+                echo "Application is healthy and ready to serve requests"
+                exit 0
               fi
-              echo "Waiting for application to start... ($i/30)"
+              echo "Waiting for application to become healthy... ($i/30)"
               sleep 2
             done
           
-            echo "Application failed to start. Last few lines of log:"
+            echo "Application failed to become healthy. Last few lines of log:"
             tail -n 50 app.log
             exit 1
           '
