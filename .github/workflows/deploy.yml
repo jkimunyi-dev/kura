@@ -20,39 +20,72 @@ jobs:
         
     - name: Build with Maven
       run: ./mvnw clean package -DskipTests
-        
-    - name: Deploy to EC2
+
+    - name: Setup SSH
       env:
         EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         EC2_HOST: ec2-18-226-165-114.us-east-2.compute.amazonaws.com
-        EC2_USERNAME: ubuntu
       run: |
-        # Setup SSH key with proper permissions
         mkdir -p ~/.ssh
         echo "$EC2_SSH_KEY" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        
-        # Add host to known_hosts
         ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+        eval $(ssh-agent -s)
+        ssh-add ~/.ssh/deploy_key
         
+    - name: Test SSH Connection
+      env:
+        EC2_HOST: ec2-18-226-165-114.us-east-2.compute.amazonaws.com
+        EC2_USERNAME: ubuntu
+      run: |
+        if ! ssh -o BatchMode=yes -o ConnectTimeout=5 $EC2_USERNAME@$EC2_HOST echo "SSH connection successful"; then
+          echo "Failed to establish SSH connection"
+          exit 1
+        fi
+        
+    - name: Deploy to EC2
+      env:
+        EC2_HOST: ec2-18-226-165-114.us-east-2.compute.amazonaws.com
+        EC2_USERNAME: ubuntu
+      run: |
         # Copy JAR to EC2
-        scp -i ~/.ssh/deploy_key target/kura-*.jar $EC2_USERNAME@$EC2_HOST:~/app.jar
+        if ! scp target/kura-*.jar $EC2_USERNAME@$EC2_HOST:~/app.jar; then
+          echo "Failed to copy JAR file to EC2"
+          exit 1
+        fi
         
         # Deploy application
-        ssh -i ~/.ssh/deploy_key $EC2_USERNAME@$EC2_HOST '
-          # Kill existing application if running
-          pid=$(pgrep -f app.jar) && kill -9 $pid || true
+        ssh $EC2_USERNAME@$EC2_HOST '
+          set -e
           
-          # Start the application with proper memory settings
-          nohup java -Xmx512m -jar app.jar > app.log 2>&1 &
-          
-          # Wait and verify
-          sleep 15
-          if pgrep -f app.jar > /dev/null; then
-            echo "Application deployed successfully"
-          else
-            echo "Application failed to start" && exit 1
+          echo "Stopping existing application..."
+          if pid=$(pgrep -f app.jar); then
+            kill -15 $pid || kill -9 $pid
+            sleep 5
           fi
+          
+          echo "Starting new application..."
+          nohup java \
+            -Xmx512m \
+            -XX:+HeapDumpOnOutOfMemoryError \
+            -XX:HeapDumpPath=/home/ubuntu/heapdump.hprof \
+            -jar app.jar > app.log 2>&1 &
+          
+          # Wait for application to start
+          for i in {1..30}; do
+            if pgrep -f app.jar > /dev/null; then
+              if curl -s http://localhost:8080/actuator/health 2>&1 | grep -q "UP"; then
+                echo "Application started successfully"
+                exit 0
+              fi
+            fi
+            echo "Waiting for application to start... ($i/30)"
+            sleep 2
+          done
+          
+          echo "Application failed to start. Last few lines of log:"
+          tail -n 50 app.log
+          exit 1
         '
 
 
