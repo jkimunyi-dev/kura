@@ -49,19 +49,19 @@ public class CourseCodeParser {
 
     /**
      * Checks if two users belong to the same class based on their course codes
-     * Same class means same faculty, department, and admission year
+     * Same class means same faculty and department only
      *
      * @param courseCode1 First course code
      * @param courseCode2 Second course code
-     * @return true if both users belong to the same class
+     * @return true if both users belong to the same faculty/department
      */
     public static boolean isSameClass(String courseCode1, String courseCode2) {
         Map<String, String> parsed1 = parse(courseCode1);
         Map<String, String> parsed2 = parse(courseCode2);
 
         return parsed1.get("facultyCode").equals(parsed2.get("facultyCode")) &&
-                parsed1.get("departmentCode").equals(parsed2.get("departmentCode")) &&
-                parsed1.get("admissionYear").equals(parsed2.get("admissionYear"));
+               parsed1.get("departmentCode").equals(parsed2.get("departmentCode"));
+        // Removed admissionYear check
     }
 
     /**
