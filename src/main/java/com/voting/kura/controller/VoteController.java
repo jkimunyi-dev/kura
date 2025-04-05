@@ -5,10 +5,7 @@ import com.voting.kura.dto.response.VoteResponse;
 import com.voting.kura.service.VoteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/votes")
@@ -22,7 +19,14 @@ public class VoteController {
     }
 
     @PostMapping
-    public ResponseEntity<VoteResponse> castVote(@RequestBody VoteRequest voteRequest) {
-        return ResponseEntity.ok(voteService.castVote(voteRequest));
+    public ResponseEntity<VoteResponse> castVote(
+            @RequestParam String voterAdmissionNumber,
+            @RequestParam String candidateAdmissionNumber,
+            @RequestParam String votingCode) {
+        return ResponseEntity.ok(voteService.castVote(new VoteRequest(
+            voterAdmissionNumber, 
+            candidateAdmissionNumber, 
+            votingCode
+        )));
     }
 }
