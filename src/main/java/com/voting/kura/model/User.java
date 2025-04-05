@@ -50,6 +50,8 @@ public class User {
 
     private LocalDateTime votingCodeExpiresAt;
 
+    // This field is no longer used but kept for backward compatibility
+    @Deprecated
     private boolean votingCodeUsed = false;
 
     private boolean isVoter = false;

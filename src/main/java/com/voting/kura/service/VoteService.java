@@ -85,8 +85,7 @@ public class VoteService {
         vote.setPosition(candidate.getPosition());
         voteRepository.save(vote);
 
-        // Mark voting code as used
-        votingCodeService.markCodeAsUsed(voteRequest.getVoterAdmissionNumber(), voteRequest.getVotingCode());
+        // Remove the markCodeAsUsed call since we don't mark codes as used anymore
 
         // Increment candidate's vote count
         candidate.incrementVoteCount();

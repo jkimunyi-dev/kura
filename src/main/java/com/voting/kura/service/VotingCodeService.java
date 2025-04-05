@@ -46,9 +46,8 @@ public class VotingCodeService {
         User user = userRepository.findByAdmissionNumber(admissionNumber)
                 .orElseThrow(() -> new VotingException("User not found with admission number: " + admissionNumber));
         
-        // Check if user already has an unused code that hasn't expired
+        // Only check for expiration, not for usage
         if (user.getVotingCode() != null && 
-            !user.isVotingCodeUsed() && 
             user.getVotingCodeExpiresAt().isAfter(LocalDateTime.now())) {
             throw new VotingException("User already has an active voting code");
         }
@@ -56,10 +55,10 @@ public class VotingCodeService {
         // Generate new code
         String code = generateUniqueHexCode();
         
-        // Update user with new code and voter status
+        // Update user with new code
         user.setVotingCode(code);
         user.setVotingCodeExpiresAt(LocalDateTime.now().plusHours(24));
-        user.setVotingCodeUsed(false);
+        user.setVotingCodeUsed(false); // This field becomes irrelevant
         user.setVoter(true);
         user.setVoterStatus(VoterStatus.ACTIVE);
 
@@ -81,22 +80,14 @@ public class VotingCodeService {
         return userRepository.findByAdmissionNumber(admissionNumber)
                 .filter(user -> user.getVotingCode() != null)
                 .filter(user -> user.getVotingCode().equals(code))
-                .filter(user -> !user.isVotingCodeUsed())
+                // Removed the isVotingCodeUsed check
                 .filter(user -> user.getVotingCodeExpiresAt().isAfter(LocalDateTime.now()))
                 .isPresent();
     }
 
     @Transactional
     public void markCodeAsUsed(String admissionNumber, String code) {
-        User user = userRepository.findByAdmissionNumber(admissionNumber)
-                .orElseThrow(() -> new VotingException("User not found"));
-
-        if (!user.getVotingCode().equals(code)) {
-            throw new VotingException("Invalid voting code");
-        }
-
-        user.setVotingCodeUsed(true);
-        // Keep voter status as is since they're now a verified voter
-        userRepository.save(user);
+        // Remove this method as we don't mark codes as used anymore
+        // Or keep it empty if other parts of the code expect it to exist
     }
 }
