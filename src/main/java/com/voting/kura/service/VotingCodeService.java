@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
 @Service
@@ -18,6 +20,25 @@ public class VotingCodeService {
     @Autowired
     public VotingCodeService(UserRepository userRepository) {
         this.userRepository = userRepository;
+    }
+
+    public Map<String, Object> getCodeStatus(String admissionNumber) {
+        User user = userRepository.findByAdmissionNumber(admissionNumber)
+                .orElseThrow(() -> new VotingException("User not found with admission number: " + admissionNumber));
+
+        Map<String, Object> status = new HashMap<>();
+        status.put("hasCode", user.getVotingCode() != null);
+        
+        if (user.getVotingCode() != null) {
+            status.put("code", user.getVotingCode());
+            status.put("isUsed", user.isVotingCodeUsed());
+            status.put("expiresAt", user.getVotingCodeExpiresAt());
+            status.put("isExpired", user.getVotingCodeExpiresAt().isBefore(LocalDateTime.now()));
+            status.put("isValid", !user.isVotingCodeUsed() && 
+                                 user.getVotingCodeExpiresAt().isAfter(LocalDateTime.now()));
+        }
+
+        return status;
     }
 
     @Transactional

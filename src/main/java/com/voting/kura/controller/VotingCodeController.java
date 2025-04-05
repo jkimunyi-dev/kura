@@ -18,6 +18,11 @@ public class VotingCodeController {
         this.votingCodeService = votingCodeService;
     }
 
+    @GetMapping
+    public ResponseEntity<Map<String, Object>> getCode(@RequestParam String admissionNumber) {
+        return ResponseEntity.ok(votingCodeService.getCodeStatus(admissionNumber));
+    }
+
     @PostMapping("/generate")
     public ResponseEntity<Map<String, String>> generateCode(@RequestParam String admissionNumber) {
         User user = votingCodeService.generateCode(admissionNumber);
