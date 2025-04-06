@@ -30,47 +30,8 @@ public class EligibilityService {
      * @return true if the user is eligible to vote for this position
      */
     public boolean isEligibleToVote(Long userId, Long positionId) {
-        User user = userService.getUserById(userId);
-        Position position = positionService.getPositionById(positionId);
-
-        return switch (position.getPositionLevel()) {
-            case 1 -> isEligibleForClassRepVoting(user, position);
-            case 2 -> isEligibleForFacultyRepVoting(user, position);
-            case 3 -> isEligibleForUniversityWideVoting(user);
-            default -> false;
-        };
-    }
-
-    private boolean isEligibleForClassRepVoting(User user, Position position) {
-        // Get the candidate for this position
-        Candidate candidate = candidateRepository.findByPositionId(position.getId())
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new VotingException("No candidate found for this position"));
-        
-        // Check if voter and candidate are in the same class
-        return CourseCodeParser.isSameClass(
-            user.getAdmissionNumber(), 
-            candidate.getUser().getAdmissionNumber()
-        );
-    }
-
-    private boolean isEligibleForFacultyRepVoting(User user, Position position) {
-        // Get the candidate for this position
-        Candidate candidate = candidateRepository.findByPositionId(position.getId())
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new VotingException("No candidate found for this position"));
-        
-        // Check if voter and candidate are in the same faculty
-        return CourseCodeParser.isSameFaculty(
-            user.getAdmissionNumber(), 
-            candidate.getUser().getAdmissionNumber()
-        );
-    }
-
-    private boolean isEligibleForUniversityWideVoting(User user) {
-        return user.isNumberTwo(); // Only number twos can vote
+        // All users with valid voting codes can vote for any position
+        return true;
     }
 
     /**
@@ -81,8 +42,7 @@ public class EligibilityService {
      * @return true if the user is eligible to be a candidate for this position
      */
     public boolean isEligibleToBeCandidate(User user, Position position) {
-        // Add any specific eligibility rules for candidates
-        // For now, all users can be candidates for any position
+        // All users can be candidates for any position
         return true;
     }
 }
